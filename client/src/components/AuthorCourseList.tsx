@@ -5,6 +5,9 @@ import { formatCurrency } from '../utils/formatters'
 
 type AuthorCourseListProps = {
   courses: Course[]
+  enrolledCourseIds?: Set<string>
+  onEnroll?: (courseId: string) => Promise<void>
+  onSelectCourse?: (course: Course) => void
 }
 
 const Wrapper = styled.div`
@@ -183,6 +186,33 @@ const Status = styled.span`
   text-transform: uppercase;
 `
 
+const CardActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+`
+
+const ActionButton = styled.button`
+  border: 1px solid #cfd8e3;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #ffffff;
+  color: #172033;
+  font-weight: 900;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.56;
+  }
+`
+
+const PrimaryActionButton = styled(ActionButton)`
+  border-color: #0f4f8f;
+  background: #0f4f8f;
+  color: #ffffff;
+`
+
 const tagCandidates = [
   'React',
   'Angular',
@@ -269,7 +299,7 @@ function getCourseTags(course: Course) {
   return Array.from(new Set([...matchedTags, ...fallbackTags])).slice(0, 3)
 }
 
-export function AuthorCourseList({ courses }: AuthorCourseListProps) {
+export function AuthorCourseList({ courses, enrolledCourseIds, onEnroll, onSelectCourse }: AuthorCourseListProps) {
   const displayCourses = courses.length > 0 ? courses : sampleCourses
 
   const authors = useMemo(() => {
@@ -336,6 +366,24 @@ export function AuthorCourseList({ courses }: AuthorCourseListProps) {
                 <Price>{formatCurrency(course.priceCents)}</Price>
                 <Status>{course.status}</Status>
               </Footer>
+              {onSelectCourse || onEnroll ? (
+                <CardActions>
+                  {onSelectCourse ? (
+                    <ActionButton type="button" onClick={() => onSelectCourse(course)}>
+                      Details
+                    </ActionButton>
+                  ) : null}
+                  {onEnroll ? (
+                    <PrimaryActionButton
+                      type="button"
+                      disabled={enrolledCourseIds?.has(course.id)}
+                      onClick={() => onEnroll(course.id)}
+                    >
+                      {enrolledCourseIds?.has(course.id) ? 'Enrolled' : 'Enroll'}
+                    </PrimaryActionButton>
+                  ) : null}
+                </CardActions>
+              ) : null}
             </CardBody>
           </Card>
         ))}
