@@ -18,3 +18,9 @@ export async function coursePerformance(req: Request, res: Response) {
   const report = await analyticsService.getCoursePerformanceReport(query);
   return res.json({ report });
 }
+
+export async function cohortReport(req: Request, res: Response) {
+  const query = validate(reportQuerySchema, req.query);
+  const report = await analyticsService.getCohortReport(query);
+  return res.json({ report });
+}
