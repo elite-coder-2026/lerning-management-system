@@ -1,21 +1,32 @@
 import styled from 'styled-components'
+import type { AuthUser } from '../api/lms'
 
-const endpoints = [
+type WorkflowEndpoint = {
+  method: string
+  description: string
+  roles: AuthUser['role'][]
+}
+
+const endpoints: WorkflowEndpoint[] = [
   {
     method: 'POST /api/courses/enrollments',
     description: 'Creates or reactivates an enrollment inside a transaction.',
+    roles: ['admin', 'student'],
   },
   {
     method: 'POST /api/courses/payments',
     description: 'Records paid course revenue from enrollment and course rows.',
+    roles: ['admin', 'student'],
   },
   {
     method: 'POST /api/learning/quizzes/submissions',
     description: 'Scores answers with SQL CTEs and stores answers atomically.',
+    roles: ['student'],
   },
   {
     method: 'POST /api/learning/assignments/grades',
     description: 'Grades assignment submissions with instructor or admin roles.',
+    roles: ['admin', 'instructor'],
   },
 ]
 
@@ -51,10 +62,12 @@ const Description = styled.span`
   color: #667085;
 `
 
-export function WorkflowEndpoints() {
+export function WorkflowEndpoints({ role }: { role: AuthUser['role'] }) {
+  const visibleEndpoints = endpoints.filter((endpoint) => endpoint.roles.includes(role))
+
   return (
     <List>
-      {endpoints.map((endpoint) => (
+      {visibleEndpoints.map((endpoint) => (
         <Item key={endpoint.method}>
           <Method>{endpoint.method}</Method>
           <Description>{endpoint.description}</Description>
