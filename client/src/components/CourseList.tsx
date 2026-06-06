@@ -4,6 +4,7 @@ import { formatCurrency } from '../utils/formatters'
 
 type CourseListProps = {
   courses: Course[]
+  onSelectCourse?: (course: Course) => void
 }
 
 const List = styled.div`
@@ -28,6 +29,16 @@ const Row = styled.article`
   }
 `
 
+const DetailButton = styled.button`
+  border: 1px solid #cfd8e3;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #ffffff;
+  color: #172033;
+  font-weight: 900;
+  cursor: pointer;
+`
+
 const CourseTitle = styled.h3`
   margin: 0 0 6px;
   color: #172033;
@@ -49,7 +60,7 @@ const Price = styled.span`
   font-weight: 800;
 `
 
-export function CourseList({ courses }: CourseListProps) {
+export function CourseList({ courses, onSelectCourse }: CourseListProps) {
   if (courses.length === 0) {
     return (
       <List>
@@ -66,7 +77,13 @@ export function CourseList({ courses }: CourseListProps) {
             <CourseTitle>{course.title}</CourseTitle>
             <CourseDescription>{course.description}</CourseDescription>
           </div>
-          <Price>{formatCurrency(course.priceCents)}</Price>
+          {onSelectCourse ? (
+            <DetailButton type="button" onClick={() => onSelectCourse(course)}>
+              Details
+            </DetailButton>
+          ) : (
+            <Price>{formatCurrency(course.priceCents)}</Price>
+          )}
         </Row>
       ))}
     </List>
