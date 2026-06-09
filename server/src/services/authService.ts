@@ -24,9 +24,15 @@ export async function register(input: {
   fullName: string;
   role: Role;
 }): Promise<AuthResult> {
+  const email = input.email.toLowerCase();
+  const existingUser = await users.findUserByEmail(pool, email);
+  if (existingUser) {
+    throw Object.assign(new Error('An account already exists for this email.'), { statusCode: 409 });
+  }
+
   const passwordHash = await bcrypt.hash(input.password, 12);
   const user = await users.createUser(pool, {
-    email: input.email.toLowerCase(),
+    email,
     passwordHash,
     fullName: input.fullName,
     role: input.role,
@@ -48,4 +54,13 @@ export async function login(input: { email: string; password: string }): Promise
 
   const { passwordHash, ...publicUser } = user;
   return { user: publicUser, token: signToken(publicUser) };
+}
+
+export async function currentUser(id: string): Promise<PublicUser> {
+  const user = await users.findUserById(pool, id);
+  if (!user) {
+    throw Object.assign(new Error('User not found'), { statusCode: 404 });
+  }
+
+  return user;
 }
