@@ -1,7 +1,23 @@
 import { withTransaction } from '../db/transaction.js';
+import { pool } from '../db/pool.js';
 import * as assignments from '../repositories/assignmentRepository.js';
 import * as quizzes from '../repositories/quizRepository.js';
-import type { AssignmentSubmission, QuizSubmission } from '../types/models.js';
+import type { AssignmentGradeItem, AssignmentSubmission, AssignmentWork, QuizAttempt, QuizSubmission } from '../types/models.js';
+
+export async function listStudentQuizAttempts(userId: string): Promise<QuizAttempt[]> {
+  return quizzes.listStudentQuizAttempts(pool, userId);
+}
+
+export async function listStudentAssignments(userId: string): Promise<AssignmentWork[]> {
+  return assignments.listStudentAssignments(pool, userId);
+}
+
+export async function listSubmissionsForGrading(input: {
+  userId: string;
+  role: 'admin' | 'instructor';
+}): Promise<AssignmentGradeItem[]> {
+  return assignments.listSubmissionsForGrading(pool, input);
+}
 
 export async function submitQuiz(input: {
   quizId: string;
