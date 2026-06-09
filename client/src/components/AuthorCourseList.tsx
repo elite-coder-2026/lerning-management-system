@@ -54,6 +54,12 @@ const AuthorSummary = styled.span`
   font-weight: 700;
 `
 
+const EmptyState = styled.p`
+  margin: 0;
+  padding: 24px 20px;
+  color: #667085;
+`
+
 const CardGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -224,49 +230,7 @@ const tagCandidates = [
   'APIs',
 ]
 
-const sampleAuthorNames: Record<string, string> = {
-  'author-maya': 'Maya Chen',
-  'author-jordan': 'Jordan Ellis',
-}
-
-const sampleCourses: Course[] = [
-  {
-    id: 'sample-react-dashboard',
-    instructorId: 'author-maya',
-    title: 'React Dashboard Systems',
-    description: 'Build production dashboards with reusable cards, filters, charts, and API-backed course data.',
-    priceCents: 12900,
-    status: 'published',
-    createdAt: new Date('2026-01-08T12:00:00.000Z').toISOString(),
-    updatedAt: new Date('2026-01-08T12:00:00.000Z').toISOString(),
-  },
-  {
-    id: 'sample-angular-foundations',
-    instructorId: 'author-maya',
-    title: 'Angular Course Foundations',
-    description: 'Create structured Angular learning paths with modules, services, route guards, and typed forms.',
-    priceCents: 9900,
-    status: 'published',
-    createdAt: new Date('2026-01-09T12:00:00.000Z').toISOString(),
-    updatedAt: new Date('2026-01-09T12:00:00.000Z').toISOString(),
-  },
-  {
-    id: 'sample-node-postgres',
-    instructorId: 'author-jordan',
-    title: 'Node.js and PostgreSQL APIs',
-    description: 'Design raw SQL repositories, transactions, validation, authentication, and analytics endpoints.',
-    priceCents: 14900,
-    status: 'published',
-    createdAt: new Date('2026-01-10T12:00:00.000Z').toISOString(),
-    updatedAt: new Date('2026-01-10T12:00:00.000Z').toISOString(),
-  },
-]
-
 function getAuthorLabel(instructorId: string, index: number) {
-  if (sampleAuthorNames[instructorId]) {
-    return sampleAuthorNames[instructorId]
-  }
-
   return `Author ${index + 1} (${instructorId.slice(0, 8)})`
 }
 
@@ -300,20 +264,22 @@ function getCourseTags(course: Course) {
 }
 
 export function AuthorCourseList({ courses, enrolledCourseIds, onEnroll, onSelectCourse }: AuthorCourseListProps) {
-  const displayCourses = courses.length > 0 ? courses : sampleCourses
-
   const authors = useMemo(() => {
-    const uniqueIds = Array.from(new Set(displayCourses.map((course) => course.instructorId)))
+    const uniqueIds = Array.from(new Set(courses.map((course) => course.instructorId)))
     return uniqueIds.map((instructorId, index) => ({
       instructorId,
       label: getAuthorLabel(instructorId, index),
     }))
-  }, [displayCourses])
+  }, [courses])
 
   const [selectedAuthorId, setSelectedAuthorId] = useState('')
   const activeAuthorId = selectedAuthorId || authors[0]?.instructorId || ''
-  const authorCourses = displayCourses.filter((course) => course.instructorId === activeAuthorId)
+  const authorCourses = courses.filter((course) => course.instructorId === activeAuthorId)
   const activeAuthor = authors.find((author) => author.instructorId === activeAuthorId)
+
+  if (courses.length === 0) {
+    return <EmptyState>No courses returned yet. Create one as an instructor and publish it.</EmptyState>
+  }
 
   return (
     <Wrapper>
