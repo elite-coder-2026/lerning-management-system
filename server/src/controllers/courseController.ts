@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import * as courseService from '../services/courseService.js';
 import type { CourseStatus } from '../types/models.js';
-import { createCourseSchema, enrollmentSchema, paymentSchema, updateCourseSchema } from '../validation/courseSchemas.js';
+import { createCourseSchema, enrollmentSchema, paymentSchema, updateCourseSchema, videoLessonSchema } from '../validation/courseSchemas.js';
 import { paginationSchema, uuidSchema, validate } from '../validation/shared.js';
 
 export async function listCourses(req: Request, res: Response) {
@@ -50,6 +50,16 @@ export async function deleteCourse(req: Request, res: Response) {
   return res.status(deleted ? 204 : 404).send();
 }
 
+export async function createVideoLesson(req: Request, res: Response) {
+  const input = validate(videoLessonSchema, req.body);
+  const lesson = await courseService.createVideoLesson({
+    ...input,
+    instructorId: req.user!.id,
+    role: req.user!.role as 'admin' | 'instructor',
+  });
+  return res.status(201).json({ lesson });
+}
+
 export async function enroll(req: Request, res: Response) {
   const input = validate(enrollmentSchema, req.body);
   const enrollment = await courseService.enrollStudent({
@@ -59,8 +69,24 @@ export async function enroll(req: Request, res: Response) {
   return res.status(201).json({ enrollment });
 }
 
+export async function listEnrollments(req: Request, res: Response) {
+  const enrollments = await courseService.listEnrollments({
+    role: req.user!.role,
+    userId: req.user!.id,
+  });
+  return res.json({ enrollments });
+}
+
 export async function pay(req: Request, res: Response) {
   const input = validate(paymentSchema, req.body);
   const payment = await courseService.recordPayment(input);
   return res.status(201).json({ payment });
+}
+
+export async function listPayments(req: Request, res: Response) {
+  const payments = await courseService.listPayments({
+    role: req.user!.role,
+    userId: req.user!.id,
+  });
+  return res.json({ payments });
 }
