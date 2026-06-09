@@ -37,6 +37,8 @@ CREATE TABLE lessons (
   module_id uuid NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
   title text NOT NULL,
   content text NOT NULL,
+  video_url text,
+  duration_seconds integer CHECK (duration_seconds IS NULL OR duration_seconds >= 0),
   sort_order integer NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (module_id, sort_order)
