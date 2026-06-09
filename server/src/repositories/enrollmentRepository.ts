@@ -42,6 +42,13 @@ export async function listUserEnrollments(db: Queryable, userId: string): Promis
   return result.rows.map(mapEnrollment);
 }
 
+export async function listEnrollments(db: Queryable): Promise<Enrollment[]> {
+  const query = enrollmentQueries.listEnrollments();
+  const result = await db.query<EnrollmentRow>(query.text, query.values);
+
+  return result.rows.map(mapEnrollment);
+}
+
 export async function findEnrollmentById(db: Queryable, id: string): Promise<Enrollment | null> {
   const query = enrollmentQueries.findEnrollmentById(id);
   const result = await db.query<EnrollmentRow>(query.text, query.values);
