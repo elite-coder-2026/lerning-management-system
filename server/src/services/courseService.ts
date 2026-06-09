@@ -3,7 +3,7 @@ import { withTransaction } from '../db/transaction.js';
 import * as courses from '../repositories/courseRepository.js';
 import * as enrollments from '../repositories/enrollmentRepository.js';
 import * as payments from '../repositories/paymentRepository.js';
-import type { Course, CourseStatus, Enrollment, Payment } from '../types/models.js';
+import type { Course, CourseStatus, Enrollment, Payment, VideoLesson } from '../types/models.js';
 
 export function listCourses(input: { limit: number; offset: number; status?: CourseStatus }): Promise<Course[]> {
   return courses.listCourses(pool, input);
@@ -34,6 +34,37 @@ export function deleteCourse(id: string): Promise<boolean> {
   return courses.deleteCourse(pool, id);
 }
 
+export async function createVideoLesson(input: {
+  courseId: string;
+  instructorId: string;
+  role: 'admin' | 'instructor';
+  moduleTitle: string;
+  title: string;
+  summary: string;
+  videoUrl: string;
+  durationMinutes: number;
+}): Promise<VideoLesson> {
+  return withTransaction(async (client) => {
+    const course = await courses.findCourseById(client, input.courseId);
+    if (!course) {
+      throw Object.assign(new Error('Course not found'), { statusCode: 404 });
+    }
+
+    if (input.role !== 'admin' && course.instructorId !== input.instructorId) {
+      throw Object.assign(new Error('Course is not owned by this instructor'), { statusCode: 403 });
+    }
+
+    return courses.createVideoLesson(client, {
+      courseId: input.courseId,
+      moduleTitle: input.moduleTitle,
+      title: input.title,
+      summary: input.summary,
+      videoUrl: input.videoUrl,
+      durationSeconds: input.durationMinutes * 60,
+    });
+  });
+}
+
 export async function enrollStudent(input: { userId: string; courseId: string }): Promise<Enrollment> {
   return withTransaction(async (client) => {
     const course = await courses.findCourseById(client, input.courseId);
@@ -43,6 +74,14 @@ export async function enrollStudent(input: { userId: string; courseId: string })
 
     return enrollments.createEnrollment(client, input);
   });
+}
+
+export function listEnrollments(input: { role: 'admin' | 'instructor' | 'student'; userId: string }): Promise<Enrollment[]> {
+  if (input.role === 'admin') {
+    return enrollments.listEnrollments(pool);
+  }
+
+  return enrollments.listUserEnrollments(pool, input.userId);
 }
 
 export async function recordPayment(input: {
@@ -71,4 +110,12 @@ export async function recordPayment(input: {
       status: 'paid',
     });
   });
+}
+
+export function listPayments(input: { role: 'admin' | 'instructor' | 'student'; userId: string }): Promise<Payment[]> {
+  if (input.role === 'admin') {
+    return payments.listPayments(pool);
+  }
+
+  return payments.listPayments(pool, { userId: input.userId });
 }
