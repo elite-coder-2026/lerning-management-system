@@ -48,3 +48,10 @@ export async function createPayment(
 
   return mapPayment(result.rows[0]!);
 }
+
+export async function listPayments(db: Queryable, input?: { userId?: string }): Promise<Payment[]> {
+  const query = paymentQueries.listPayments(input);
+  const result = await db.query<PaymentRow>(query.text, query.values);
+
+  return result.rows.map(mapPayment);
+}
