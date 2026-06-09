@@ -1,24 +1,31 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import styled from 'styled-components'
-import type { Course, RegisterInput } from '../api/lms'
+import { ApiError, type Course, type RegisterInput } from '../api/lms'
 import { AuthorCourseList } from './AuthorCourseList'
+import { CourseDetailPage } from './CourseDetailPage'
+import { VerticalNav, type VerticalNavItem } from './VerticalNav'
 
 type PublicHomePageProps = {
   courses: Course[]
   status: string
   loginError: string
   onLogin: (input: { email: string; password: string }) => Promise<void>
+  onOpenDashboard: (role: 'admin' | 'instructor' | 'student') => Promise<void>
   onRegister: (input: RegisterInput) => Promise<void>
 }
 
 const Page = styled.main`
   min-height: 100vh;
+  padding-left: 232px;
   background: #f6f8fb;
+
+  @media (max-width: 1180px) {
+    padding-left: 0;
+  }
 `
 
 const Header = styled.header`
-  width: min(1180px, calc(100% - 48px));
-  max-width: 1180px;
+  width: min(var(--page-width), calc(100% - var(--page-gutter)));
   margin: 0 auto;
   padding: 22px 0;
   display: flex;
@@ -27,7 +34,6 @@ const Header = styled.header`
   gap: 20px;
 
   @media (max-width: 720px) {
-    width: min(1180px, calc(100% - 40px));
     align-items: flex-start;
     flex-direction: column;
   }
@@ -85,14 +91,12 @@ const NavButton = styled.button`
 
 const Hero = styled.section`
   display: block;
-  width: min(1180px, calc(100% - 48px));
-  max-width: 1180px;
+  width: min(var(--page-width), calc(100% - var(--page-gutter)));
   margin: 0 auto;
   padding: 56px 0 32px;
 
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
-    width: min(1180px, calc(100% - 40px));
     padding-top: 28px;
   }
 `
@@ -152,14 +156,14 @@ const PrimaryAction = styled.button`
   cursor: pointer;
 `
 
-const SecondaryButton = styled.a`
+const SecondaryAction = styled.button`
   border: 1px solid #cfd8e3;
   border-radius: 6px;
   padding: 10px 16px;
   background: #ffffff;
   color: #172033;
   font-weight: 900;
-  text-decoration: none;
+  cursor: pointer;
 `
 
 const Field = styled.label`
@@ -190,14 +194,18 @@ const ErrorMessage = styled.p`
   font-weight: 800;
 `
 
-const Section = styled.section`
-  width: min(1180px, calc(100% - 48px));
-  max-width: 1180px;
+const Section = styled.section<{ $isActive?: boolean }>`
+  width: min(var(--page-width), calc(100% - var(--page-gutter)));
   margin: 0 auto;
   padding: 24px 0 56px;
+  scroll-margin-top: 18px;
+
+  &:focus {
+    outline: 3px solid #0f766e;
+    outline-offset: 8px;
+  }
 
   @media (max-width: 900px) {
-    width: min(1180px, calc(100% - 40px));
   }
 `
 
@@ -216,11 +224,12 @@ const SectionCopy = styled.p`
   color: #667085;
 `
 
-const CoursePreview = styled.div`
+const CoursePreview = styled.div<{ $isActive?: boolean }>`
   overflow: hidden;
   border: 1px solid #d8e0ea;
   border-radius: 8px;
   background: #ffffff;
+  box-shadow: ${({ $isActive }) => ($isActive ? '0 0 0 4px rgba(15, 118, 110, 0.18)' : 'none')};
 `
 
 const ModalOverlay = styled.div`
@@ -289,7 +298,8 @@ const GhostButton = styled.button`
   cursor: pointer;
 `
 
-export function PublicHomePage({ courses, status, loginError, onLogin, onRegister }: PublicHomePageProps) {
+export function PublicHomePage({ courses, status, loginError, onLogin, onOpenDashboard, onRegister }: PublicHomePageProps) {
+  const courseSectionRef = useRef<HTMLElement | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoginOpen, setIsLoginOpen] = useState(false)
@@ -299,14 +309,56 @@ export function PublicHomePage({ courses, status, loginError, onLogin, onRegiste
   const [registerPassword, setRegisterPassword] = useState('')
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState('')
   const [registerError, setRegisterError] = useState('')
+  const [isRegisterSubmitting, setIsRegisterSubmitting] = useState(false)
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [isCourseBrowserActive, setIsCourseBrowserActive] = useState(false)
+
+  function browseCourses() {
+    setIsCourseBrowserActive(true)
+    window.history.replaceState(null, '', '#courses')
+    courseSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    courseSectionRef.current?.focus({ preventScroll: true })
+  }
+
+  function formatApiError(error: unknown) {
+    if (error instanceof ApiError) {
+      const issueMessages = error.issues?.map((issue) => issue.message).filter(Boolean)
+      return issueMessages?.length ? issueMessages.join(' ') : error.message
+    }
+
+    return 'Registration failed. Check your details and try again.'
+  }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     void onLogin({ email, password })
   }
 
-  async function handleRegisterSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  const publicNavItems: VerticalNavItem[] = [
+    { label: 'Admin dashboard', onClick: () => void onOpenDashboard('admin') },
+    { label: 'Instructor dashboard', onClick: () => void onOpenDashboard('instructor') },
+    { label: 'Student dashboard', onClick: () => void onOpenDashboard('student') },
+    { label: 'Home', href: '#public-home' },
+    { label: 'Course browser', href: '#courses' },
+    { label: 'Login modal', onClick: () => setIsLoginOpen(true) },
+    { label: 'Register modal', onClick: () => setIsRegisterOpen(true) },
+  ]
+
+  async function handleRegisterSubmit() {
+    if (!registerName.trim() || !registerEmail.trim() || !registerPassword) {
+      setRegisterError('Name, email, and password are required.')
+      return
+    }
+
+    if (!registerEmail.includes('@')) {
+      setRegisterError('Enter a valid email address.')
+      return
+    }
+
+    if (registerPassword.length < 8) {
+      setRegisterError('Password must be at least 8 characters.')
+      return
+    }
 
     if (registerPassword !== registerConfirmPassword) {
       setRegisterError('Passwords do not match.')
@@ -314,22 +366,30 @@ export function PublicHomePage({ courses, status, loginError, onLogin, onRegiste
     }
 
     setRegisterError('')
+    setIsRegisterSubmitting(true)
 
     try {
       await onRegister({
         email: registerEmail,
         password: registerPassword,
-        fullName: registerName,
+        fullName: registerName.trim(),
         role: 'student',
       })
       setIsRegisterOpen(false)
-    } catch {
-      setRegisterError('Registration failed. Check your details and try again.')
+      setRegisterName('')
+      setRegisterEmail('')
+      setRegisterPassword('')
+      setRegisterConfirmPassword('')
+    } catch (error) {
+      setRegisterError(formatApiError(error))
+    } finally {
+      setIsRegisterSubmitting(false)
     }
   }
 
   return (
     <Page>
+      <VerticalNav title="public navigation" items={publicNavItems} />
       <Header>
         <Brand>
           <BrandName>RawSQL LMS</BrandName>
@@ -346,7 +406,7 @@ export function PublicHomePage({ courses, status, loginError, onLogin, onRegiste
         </Nav>
       </Header>
 
-      <Hero>
+      <Hero id="public-home">
         <div>
           <Eyebrow>Learn modern app development</Eyebrow>
           <Title>Courses built for working developers and technical teams.</Title>
@@ -358,20 +418,37 @@ export function PublicHomePage({ courses, status, loginError, onLogin, onRegiste
             <PrimaryAction type="button" onClick={() => setIsLoginOpen(true)}>
               Sign in to dashboard
             </PrimaryAction>
-            <SecondaryButton href="#courses">Browse courses</SecondaryButton>
+            <SecondaryAction type="button" onClick={browseCourses}>
+              Browse courses
+            </SecondaryAction>
           </ActionRow>
         </div>
       </Hero>
 
-      <Section id="courses">
+      <Section id="courses" ref={courseSectionRef} tabIndex={-1} $isActive={isCourseBrowserActive}>
         <SectionHeading>
           <SectionTitle>Author courses</SectionTitle>
           <SectionCopy>Preview course cards before signing in.</SectionCopy>
         </SectionHeading>
-        <CoursePreview>
-          <AuthorCourseList courses={courses} />
+        <CoursePreview $isActive={isCourseBrowserActive}>
+          <AuthorCourseList courses={courses} onSelectCourse={setSelectedCourse} />
         </CoursePreview>
       </Section>
+
+      {selectedCourse ? (
+        <ModalOverlay
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setSelectedCourse(null)
+            }
+          }}
+        >
+          <ModalCard as="div" aria-label={`${selectedCourse.title} details`}>
+            <CourseDetailPage course={selectedCourse} onClose={() => setSelectedCourse(null)} />
+          </ModalCard>
+        </ModalOverlay>
+      ) : null}
 
       {isLoginOpen ? (
         <ModalOverlay
@@ -435,7 +512,7 @@ export function PublicHomePage({ courses, status, loginError, onLogin, onRegiste
             }
           }}
         >
-          <ModalCard aria-labelledby="register-title" onSubmit={handleRegisterSubmit}>
+          <ModalCard as="div" aria-labelledby="register-title">
             <ModalHeader>
               <div>
                 <ModalTitle id="register-title">Create an account</ModalTitle>
@@ -453,6 +530,7 @@ export function PublicHomePage({ courses, status, loginError, onLogin, onRegiste
                 value={registerName}
                 onChange={(event) => setRegisterName(event.target.value)}
                 placeholder="Alex Morgan"
+                autoComplete="name"
                 required
               />
             </Field>
@@ -463,6 +541,7 @@ export function PublicHomePage({ courses, status, loginError, onLogin, onRegiste
                 value={registerEmail}
                 onChange={(event) => setRegisterEmail(event.target.value)}
                 placeholder="alex@example.com"
+                autoComplete="email"
                 required
               />
             </Field>
@@ -473,6 +552,7 @@ export function PublicHomePage({ courses, status, loginError, onLogin, onRegiste
                 value={registerPassword}
                 onChange={(event) => setRegisterPassword(event.target.value)}
                 placeholder="At least 8 characters"
+                autoComplete="new-password"
                 minLength={8}
                 required
               />
@@ -484,6 +564,7 @@ export function PublicHomePage({ courses, status, loginError, onLogin, onRegiste
                 value={registerConfirmPassword}
                 onChange={(event) => setRegisterConfirmPassword(event.target.value)}
                 placeholder="Re-enter your password"
+                autoComplete="new-password"
                 minLength={8}
                 required
               />
@@ -493,7 +574,9 @@ export function PublicHomePage({ courses, status, loginError, onLogin, onRegiste
               <GhostButton type="button" onClick={() => setIsRegisterOpen(false)}>
                 Cancel
               </GhostButton>
-              <PrimaryButton type="submit">Create account</PrimaryButton>
+              <PrimaryButton type="button" disabled={isRegisterSubmitting} onClick={handleRegisterSubmit}>
+                {isRegisterSubmitting ? 'Creating account' : 'Create account'}
+              </PrimaryButton>
             </ModalActions>
             {registerError ? <ErrorMessage>{registerError}</ErrorMessage> : null}
           </ModalCard>
