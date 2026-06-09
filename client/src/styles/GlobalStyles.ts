@@ -2,6 +2,8 @@ import { createGlobalStyle } from 'styled-components'
 
 export const GlobalStyles = createGlobalStyle`
   :root {
+    --page-width: 1180px;
+    --page-gutter: 48px;
     font: 16px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     color: #172033;
     background: #f6f8fb;
@@ -17,6 +19,20 @@ export const GlobalStyles = createGlobalStyle`
 
   body {
     margin: 0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  [id] {
+    scroll-margin-top: 18px;
+  }
+
+  @media (max-width: 900px) {
+    :root {
+      --page-gutter: 40px;
+    }
   }
 
   button,
