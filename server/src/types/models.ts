@@ -25,6 +25,19 @@ export type Course = {
   updatedAt: string;
 };
 
+export type VideoLesson = {
+  id: string;
+  moduleId: string;
+  courseId: string;
+  moduleTitle: string;
+  title: string;
+  summary: string;
+  videoUrl: string;
+  durationSeconds: number;
+  sortOrder: number;
+  createdAt: string;
+};
+
 export type Enrollment = {
   id: string;
   userId: string;
@@ -57,6 +70,31 @@ export type QuizSubmission = {
   submittedAt: string;
 };
 
+export type QuizOption = {
+  id: string;
+  questionId: string;
+  label: string;
+};
+
+export type QuizQuestion = {
+  id: string;
+  quizId: string;
+  prompt: string;
+  sortOrder: number;
+  points: number;
+  options: QuizOption[];
+};
+
+export type QuizAttempt = {
+  id: string;
+  courseId: string;
+  courseTitle: string;
+  title: string;
+  passingScore: number;
+  latestSubmission: QuizSubmission | null;
+  questions: QuizQuestion[];
+};
+
 export type AssignmentSubmission = {
   id: string;
   assignmentId: string;
@@ -67,6 +105,26 @@ export type AssignmentSubmission = {
   gradedBy: string | null;
   submittedAt: string;
   gradedAt: string | null;
+};
+
+export type AssignmentWork = {
+  id: string;
+  courseId: string;
+  courseTitle: string;
+  title: string;
+  instructions: string;
+  maxPoints: number;
+  dueAt: string | null;
+  submission: AssignmentSubmission | null;
+};
+
+export type AssignmentGradeItem = AssignmentSubmission & {
+  assignmentTitle: string;
+  courseId: string;
+  courseTitle: string;
+  maxPoints: number;
+  studentName: string;
+  studentEmail: string;
 };
 
 export type DashboardAnalytics = {
