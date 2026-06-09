@@ -31,8 +31,7 @@ const HeroBand = styled.section`
   grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.6fr);
   gap: 32px;
   align-items: end;
-  width: min(1180px, calc(100% - 48px));
-  max-width: 1180px;
+  width: min(var(--page-width), calc(100% - var(--page-gutter)));
   margin: 24px auto 0;
   padding: 48px;
   overflow: hidden;
@@ -44,7 +43,6 @@ const HeroBand = styled.section`
 
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
-    width: min(1180px, calc(100% - 40px));
     padding: 32px 20px;
   }
 `
@@ -124,7 +122,7 @@ export function HeroSection({ status, user, onLogout }: HeroSectionProps) {
   const content = roleCopy[user.role]
 
   return (
-    <HeroBand>
+    <HeroBand id="workspace">
       <div>
         <Eyebrow>{content.eyebrow}</Eyebrow>
         <Title>{content.title}</Title>
