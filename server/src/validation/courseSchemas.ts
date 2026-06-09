@@ -9,6 +9,15 @@ export const createCourseSchema = z.object({
 
 export const updateCourseSchema = createCourseSchema.partial();
 
+export const videoLessonSchema = z.object({
+  courseId: z.string().uuid(),
+  moduleTitle: z.string().min(1).max(160),
+  title: z.string().min(1).max(160),
+  summary: z.string().max(4000).default(''),
+  videoUrl: z.string().url().max(2000),
+  durationMinutes: z.number().int().min(0).max(10000),
+});
+
 export const enrollmentSchema = z.object({
   userId: z.string().uuid().optional(),
   courseId: z.string().uuid(),
