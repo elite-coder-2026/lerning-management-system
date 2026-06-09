@@ -77,9 +77,110 @@ export const analyticsQueries = {
      ORDER BY revenue_cents DESC, enrollments DESC`,
     values: [input.from, input.to, 'paid'],
   }),
+  getCohortReport: (input: { from: string; to: string }) => ({
+    text: `WITH enrollment_base AS (
+       SELECT
+         e.id AS enrollment_id,
+         e.user_id,
+         e.course_id,
+         e.status,
+         e.enrolled_at,
+         date_trunc('month', e.enrolled_at)::date AS cohort_month
+       FROM enrollments e
+       WHERE e.enrolled_at >= $1 AND e.enrolled_at < $2
+     ),
+     paid_users AS (
+       SELECT DISTINCT user_id, course_id
+       FROM payments
+       WHERE status = $3
+     ),
+     quiz_scores AS (
+       SELECT
+         qs.user_id,
+         q.course_id,
+         AVG(qs.score)::numeric(5,2) AS average_quiz_score
+       FROM quiz_submissions qs
+       JOIN quizzes q ON q.id = qs.quiz_id
+       GROUP BY qs.user_id, q.course_id
+     )
+     SELECT
+       eb.cohort_month,
+       COUNT(DISTINCT eb.user_id)::integer AS students,
+       COUNT(*)::integer AS enrollments,
+       COUNT(DISTINCT eb.user_id) FILTER (WHERE pu.user_id IS NOT NULL)::integer AS paid_students,
+       COALESCE(SUM(p.amount_cents) FILTER (WHERE p.status = $3), 0)::integer AS revenue_cents,
+       COUNT(*) FILTER (WHERE eb.status = $4)::integer AS completed_enrollments,
+       COALESCE(
+         COUNT(*) FILTER (WHERE eb.status = $4)::numeric / NULLIF(COUNT(*), 0) * 100,
+         0
+       )::numeric(5,2) AS completion_rate,
+       COALESCE(AVG(qs.average_quiz_score), 0)::numeric(5,2) AS average_quiz_score
+     FROM enrollment_base eb
+     LEFT JOIN paid_users pu
+       ON pu.user_id = eb.user_id AND pu.course_id = eb.course_id
+     LEFT JOIN payments p
+       ON p.user_id = eb.user_id AND p.course_id = eb.course_id
+     LEFT JOIN quiz_scores qs
+       ON qs.user_id = eb.user_id AND qs.course_id = eb.course_id
+     GROUP BY eb.cohort_month
+     ORDER BY eb.cohort_month DESC`,
+    values: [input.from, input.to, 'paid', 'completed'],
+  }),
 };
 
 export const assignmentQueries = {
+  listStudentAssignments: (userId: string) => ({
+    text: `SELECT
+       a.id,
+       a.course_id,
+       c.title AS course_title,
+       a.title,
+       a.instructions,
+       a.max_points,
+       a.due_at,
+       s.id AS submission_id,
+       s.assignment_id,
+       s.user_id,
+       s.content,
+       s.grade_points,
+       s.feedback,
+       s.graded_by,
+       s.submitted_at,
+       s.graded_at
+     FROM enrollments e
+     JOIN courses c ON c.id = e.course_id
+     JOIN assignments a ON a.course_id = c.id
+     LEFT JOIN assignment_submissions s
+       ON s.assignment_id = a.id AND s.user_id = e.user_id
+     WHERE e.user_id = $1 AND e.status = $2
+     ORDER BY COALESCE(a.due_at, a.created_at), a.created_at DESC`,
+    values: [userId, 'active'],
+  }),
+  listSubmissionsForGrading: (input: { userId: string; role: Role }) => ({
+    text: `SELECT
+       s.id,
+       s.assignment_id,
+       s.user_id,
+       s.content,
+       s.grade_points,
+       s.feedback,
+       s.graded_by,
+       s.submitted_at,
+       s.graded_at,
+       a.title AS assignment_title,
+       a.course_id,
+       c.title AS course_title,
+       a.max_points,
+       u.full_name AS student_name,
+       u.email AS student_email
+     FROM assignment_submissions s
+     JOIN assignments a ON a.id = s.assignment_id
+     JOIN courses c ON c.id = a.course_id
+     JOIN users u ON u.id = s.user_id
+     WHERE ($2 = $3 OR c.instructor_id = $1)
+     ORDER BY s.graded_at NULLS FIRST, s.submitted_at DESC`,
+    values: [input.userId, input.role, 'admin'],
+  }),
   submitAssignment: (input: { assignmentId: string; userId: string; content: string }) => ({
     text: `INSERT INTO assignment_submissions (assignment_id, user_id, content)
      VALUES ($1, $2, $3)
@@ -151,6 +252,61 @@ export const courseQueries = {
      WHERE id = $1`,
     values: [id],
   }),
+  createVideoLesson: (input: {
+    courseId: string;
+    moduleTitle: string;
+    title: string;
+    summary: string;
+    videoUrl: string;
+    durationSeconds: number;
+  }) => ({
+    text: `WITH existing_module AS (
+       SELECT id, title
+       FROM modules
+       WHERE course_id = $1 AND lower(title) = lower($2)
+       ORDER BY sort_order
+       LIMIT 1
+     ),
+     module_sort AS (
+       SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_sort
+       FROM modules
+       WHERE course_id = $1
+     ),
+     created_module AS (
+       INSERT INTO modules (course_id, title, sort_order)
+       SELECT $1, $2, next_sort
+       FROM module_sort
+       WHERE NOT EXISTS (SELECT 1 FROM existing_module)
+       RETURNING id, title
+     ),
+     selected_module AS (
+       SELECT id, title FROM existing_module
+       UNION ALL
+       SELECT id, title FROM created_module
+       LIMIT 1
+     ),
+     lesson_sort AS (
+       SELECT sm.id AS module_id, COALESCE(MAX(l.sort_order), 0) + 1 AS next_sort
+       FROM selected_module sm
+       LEFT JOIN lessons l ON l.module_id = sm.id
+       GROUP BY sm.id
+     )
+     INSERT INTO lessons (module_id, title, content, video_url, duration_seconds, sort_order)
+     SELECT module_id, $3, $4, $5, $6, next_sort
+     FROM lesson_sort
+     RETURNING
+       id,
+       module_id,
+       $1::uuid AS course_id,
+       (SELECT title FROM selected_module) AS module_title,
+       title,
+       content,
+       video_url,
+       duration_seconds,
+       sort_order,
+       created_at`,
+    values: [input.courseId, input.moduleTitle, input.title, input.summary, input.videoUrl, input.durationSeconds],
+  }),
 };
 
 export const enrollmentQueries = {
@@ -168,6 +324,12 @@ export const enrollmentQueries = {
      WHERE user_id = $1
      ORDER BY enrolled_at DESC`,
     values: [userId],
+  }),
+  listEnrollments: () => ({
+    text: `SELECT id, user_id, course_id, status, progress_percent, enrolled_at, completed_at
+     FROM enrollments
+     ORDER BY enrolled_at DESC`,
+    values: [],
   }),
   findEnrollmentById: (id: string) => ({
     text: `SELECT id, user_id, course_id, status, progress_percent, enrolled_at, completed_at
@@ -202,26 +364,67 @@ export const paymentQueries = {
       input.status,
     ],
   }),
+  listPayments: (input?: { userId?: string }) => ({
+    text: `SELECT id, enrollment_id, user_id, course_id, amount_cents, provider, provider_reference, status, paid_at, created_at
+     FROM payments
+     WHERE ($1::uuid IS NULL OR user_id = $1)
+     ORDER BY created_at DESC`,
+    values: [input?.userId ?? null],
+  }),
 };
 
 export const quizQueries = {
+  listStudentQuizAttempts: (userId: string) => ({
+    text: `SELECT
+       z.id AS quiz_id,
+       z.course_id,
+       c.title AS course_title,
+       z.title AS quiz_title,
+       z.passing_score,
+       q.id AS question_id,
+       q.prompt,
+       q.sort_order,
+       q.points,
+       o.id AS option_id,
+       o.label AS option_label,
+       latest.id AS submission_id,
+       latest.user_id AS submission_user_id,
+       latest.score,
+       latest.passed,
+       latest.submitted_at
+     FROM enrollments e
+     JOIN courses c ON c.id = e.course_id
+     JOIN quizzes z ON z.course_id = c.id
+     JOIN quiz_questions q ON q.quiz_id = z.id
+     JOIN quiz_options o ON o.question_id = q.id
+     LEFT JOIN LATERAL (
+       SELECT id, user_id, score, passed, submitted_at
+       FROM quiz_submissions
+       WHERE quiz_id = z.id AND user_id = e.user_id
+       ORDER BY submitted_at DESC
+       LIMIT 1
+     ) latest ON true
+     WHERE e.user_id = $1 AND e.status = $2
+     ORDER BY c.title, z.created_at DESC, q.sort_order, o.label`,
+    values: [userId, 'active'],
+  }),
   scoreQuizAnswers: (quizId: string, answers: QuizAnswerInput[]) => ({
     text: `WITH submitted_answers AS (
        SELECT *
        FROM jsonb_to_recordset($2::jsonb)
-       AS answer(question_id uuid, selected_option_id uuid)
+       AS answer("questionId" uuid, "selectedOptionId" uuid)
      ),
      graded AS (
        SELECT
          q.id AS question_id,
          q.points,
          z.passing_score,
-         sa.selected_option_id,
+         sa."selectedOptionId" AS selected_option_id,
          qo.is_correct
        FROM submitted_answers sa
-       JOIN quiz_questions q ON q.id = sa.question_id
+       JOIN quiz_questions q ON q.id = sa."questionId"
        JOIN quizzes z ON z.id = q.quiz_id
-       JOIN quiz_options qo ON qo.id = sa.selected_option_id AND qo.question_id = q.id
+       JOIN quiz_options qo ON qo.id = sa."selectedOptionId" AND qo.question_id = q.id
        WHERE z.id = $1
      )
      SELECT question_id, points, passing_score, selected_option_id, is_correct
@@ -243,7 +446,19 @@ export const quizQueries = {
      )
      SELECT $1, question_id, selected_option_id, is_correct, points_awarded
      FROM jsonb_to_recordset($2::jsonb)
-     AS answer(question_id uuid, selected_option_id uuid, is_correct boolean, points_awarded integer)`,
+     AS answer(
+       "questionId" uuid,
+       "selectedOptionId" uuid,
+       "isCorrect" boolean,
+       "pointsAwarded" integer
+     )
+     CROSS JOIN LATERAL (
+       SELECT
+         answer."questionId" AS question_id,
+         answer."selectedOptionId" AS selected_option_id,
+         answer."isCorrect" AS is_correct,
+         answer."pointsAwarded" AS points_awarded
+     ) mapped`,
     values: [submissionId, JSON.stringify(answers)],
   }),
 };
