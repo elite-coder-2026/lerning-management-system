@@ -13,3 +13,9 @@ analyticsRoutes.get(
   requireRole('admin', 'instructor'),
   asyncHandler(analyticsController.coursePerformance),
 );
+analyticsRoutes.get(
+  '/cohorts',
+  authMiddleware,
+  requireRole('admin', 'instructor'),
+  asyncHandler(analyticsController.cohortReport),
+);
