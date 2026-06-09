@@ -3,6 +3,24 @@ import * as learningService from '../services/learningService.js';
 import { assignmentGradeSchema, assignmentSubmissionSchema, quizSubmissionSchema } from '../validation/learningSchemas.js';
 import { validate } from '../validation/shared.js';
 
+export async function listStudentQuizAttempts(req: Request, res: Response) {
+  const quizzes = await learningService.listStudentQuizAttempts(req.user!.id);
+  return res.json({ quizzes });
+}
+
+export async function listStudentAssignments(req: Request, res: Response) {
+  const assignments = await learningService.listStudentAssignments(req.user!.id);
+  return res.json({ assignments });
+}
+
+export async function listSubmissionsForGrading(req: Request, res: Response) {
+  const submissions = await learningService.listSubmissionsForGrading({
+    userId: req.user!.id,
+    role: req.user!.role as 'admin' | 'instructor',
+  });
+  return res.json({ submissions });
+}
+
 export async function submitQuiz(req: Request, res: Response) {
   const input = validate(quizSubmissionSchema, req.body);
   const submission = await learningService.submitQuiz({
