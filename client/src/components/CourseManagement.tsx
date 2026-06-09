@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import styled from 'styled-components'
-import type { AuthUser, Course, CourseInput, CourseStatus } from '../api/lms'
+import type { AuthUser, Course, CourseInput, CourseStatus, VideoLesson } from '../api/lms'
 import { formatCurrency } from '../utils/formatters'
 
 type CourseManagementProps = {
@@ -9,6 +9,14 @@ type CourseManagementProps = {
   selectedCourseId?: string
   onSelectCourse: (course: Course) => void
   onCreateCourse: (input: CourseInput) => Promise<void>
+  onCreateVideoLesson: (input: {
+    courseId: string;
+    moduleTitle: string;
+    title: string;
+    summary: string;
+    videoUrl: string;
+    durationMinutes: number;
+  }) => Promise<VideoLesson | null>
   onUpdateCourse: (id: string, input: Partial<CourseInput>) => Promise<void>
 }
 
@@ -32,6 +40,19 @@ const Form = styled.form`
     border-right: 0;
     border-bottom: 1px solid #e7edf4;
   }
+`
+
+const FormSection = styled.div`
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid #e7edf4;
+  padding-top: 14px;
+`
+
+const FormSectionTitle = styled.h3`
+  margin: 0;
+  color: #172033;
+  font-size: 15px;
 `
 
 const Field = styled.label`
@@ -159,6 +180,15 @@ const blankInput: CourseInput = {
   status: 'draft',
 }
 
+const blankVideoLessonInput = {
+  courseId: '',
+  moduleTitle: '',
+  title: '',
+  summary: '',
+  videoUrl: '',
+  durationMinutes: 0,
+}
+
 function toFormInput(course: Course): CourseInput {
   return {
     title: course.title,
@@ -174,21 +204,18 @@ export function CourseManagement({
   selectedCourseId,
   onSelectCourse,
   onCreateCourse,
+  onCreateVideoLesson,
   onUpdateCourse,
 }: CourseManagementProps) {
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null)
   const [formInput, setFormInput] = useState<CourseInput>(blankInput)
+  const [videoLessonInput, setVideoLessonInput] = useState(blankVideoLessonInput)
   const [error, setError] = useState('')
+  const [videoLessonError, setVideoLessonError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [isSavingVideoLesson, setIsSavingVideoLesson] = useState(false)
 
   const editableCourses = user.role === 'instructor' ? courses.filter((course) => course.instructorId === user.id) : courses
-  const editingCourse = editableCourses.find((course) => course.id === editingCourseId)
-
-  useEffect(() => {
-    if (editingCourse) {
-      setFormInput(toFormInput(editingCourse))
-    }
-  }, [editingCourse])
 
   function resetForm() {
     setEditingCourseId(null)
@@ -225,9 +252,29 @@ export function CourseManagement({
     }
   }
 
+  async function handleVideoLessonSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setVideoLessonError('')
+    setIsSavingVideoLesson(true)
+
+    try {
+      const lesson = await onCreateVideoLesson(videoLessonInput)
+      if (lesson) {
+        setVideoLessonInput({ ...blankVideoLessonInput, courseId: videoLessonInput.courseId })
+      }
+    } catch {
+      setVideoLessonError('Video lesson could not be saved. Check the video URL and course selection.')
+    } finally {
+      setIsSavingVideoLesson(false)
+    }
+  }
+
   return (
     <Wrapper>
       <Form onSubmit={handleSubmit}>
+        <FormSection>
+          <FormSectionTitle>Course</FormSectionTitle>
+        </FormSection>
         <Field>
           Title
           <Input
@@ -281,6 +328,80 @@ export function CourseManagement({
         {error ? <ErrorMessage>{error}</ErrorMessage> : null}
       </Form>
 
+      <Form onSubmit={handleVideoLessonSubmit}>
+        <FormSection>
+          <FormSectionTitle>Video lesson</FormSectionTitle>
+          <Field>
+            Course
+            <Select
+              value={videoLessonInput.courseId}
+              onChange={(event) => setVideoLessonInput((current) => ({ ...current, courseId: event.target.value }))}
+              required
+            >
+              <option value="">Select course</option>
+              {editableCourses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.title}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field>
+            Module title
+            <Input
+              value={videoLessonInput.moduleTitle}
+              onChange={(event) => setVideoLessonInput((current) => ({ ...current, moduleTitle: event.target.value }))}
+              placeholder="Module 1: Foundations"
+              required
+            />
+          </Field>
+          <Field>
+            Video lesson title
+            <Input
+              value={videoLessonInput.title}
+              onChange={(event) => setVideoLessonInput((current) => ({ ...current, title: event.target.value }))}
+              placeholder="Intro video"
+              required
+            />
+          </Field>
+          <Field>
+            Video URL
+            <Input
+              type="url"
+              value={videoLessonInput.videoUrl}
+              onChange={(event) => setVideoLessonInput((current) => ({ ...current, videoUrl: event.target.value }))}
+              placeholder="https://..."
+              required
+            />
+          </Field>
+          <Field>
+            Duration minutes
+            <Input
+              min={0}
+              step={1}
+              type="number"
+              value={videoLessonInput.durationMinutes}
+              onChange={(event) =>
+                setVideoLessonInput((current) => ({ ...current, durationMinutes: Number(event.target.value) }))
+              }
+              required
+            />
+          </Field>
+          <Field>
+            Summary
+            <Textarea
+              value={videoLessonInput.summary}
+              onChange={(event) => setVideoLessonInput((current) => ({ ...current, summary: event.target.value }))}
+              placeholder="What this video covers"
+            />
+          </Field>
+          <PrimaryButton type="submit" disabled={isSavingVideoLesson || editableCourses.length === 0}>
+            Save video lesson
+          </PrimaryButton>
+          {videoLessonError ? <ErrorMessage>{videoLessonError}</ErrorMessage> : null}
+        </FormSection>
+      </Form>
+
       <CourseRows>
         {editableCourses.length === 0 ? <EmptyState>No editable courses yet.</EmptyState> : null}
         {editableCourses.map((course) => (
@@ -298,7 +419,13 @@ export function CourseManagement({
               <Button type="button" onClick={() => onSelectCourse(course)}>
                 Details
               </Button>
-              <Button type="button" onClick={() => setEditingCourseId(course.id)}>
+              <Button
+                type="button"
+                onClick={() => {
+                  setEditingCourseId(course.id)
+                  setFormInput(toFormInput(course))
+                }}
+              >
                 Edit
               </Button>
               {course.status !== 'published' ? (
