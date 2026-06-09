@@ -55,3 +55,40 @@ export async function getCoursePerformanceReport(
     gradedAssignments: toNumber(row.graded_assignments),
   }));
 }
+
+export async function getCohortReport(
+  db: Queryable,
+  input: { from: string; to: string },
+): Promise<Array<{
+  cohortMonth: string;
+  students: number;
+  enrollments: number;
+  paidStudents: number;
+  revenueCents: number;
+  completedEnrollments: number;
+  completionRate: number;
+  averageQuizScore: number;
+}>> {
+  const query = analyticsQueries.getCohortReport(input);
+  const result = await db.query<{
+    cohort_month: string;
+    students: string;
+    enrollments: string;
+    paid_students: string;
+    revenue_cents: string;
+    completed_enrollments: string;
+    completion_rate: string | null;
+    average_quiz_score: string | null;
+  }>(query.text, query.values);
+
+  return result.rows.map((row) => ({
+    cohortMonth: new Date(row.cohort_month).toISOString(),
+    students: toNumber(row.students),
+    enrollments: toNumber(row.enrollments),
+    paidStudents: toNumber(row.paid_students),
+    revenueCents: toNumber(row.revenue_cents),
+    completedEnrollments: toNumber(row.completed_enrollments),
+    completionRate: toNumber(row.completion_rate),
+    averageQuizScore: toNumber(row.average_quiz_score),
+  }));
+}
