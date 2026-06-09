@@ -8,3 +8,7 @@ export function getDashboardAnalytics() {
 export function getCoursePerformanceReport(input: { from: string; to: string }) {
   return analytics.getCoursePerformanceReport(pool, input);
 }
+
+export function getCohortReport(input: { from: string; to: string }) {
+  return analytics.getCohortReport(pool, input);
+}
